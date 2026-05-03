@@ -102,20 +102,25 @@ All stage actions are performed inside a single sequential always block using `c
   - The `*4` scaling aligns the product for extraction into `{z_m, G, R, S}`.
 
 ### Stage 5 — Extract mantissa + rounding bits
--### Stage 5 — Mantissa Extraction  
-- Product is interpreted as a 48-bit value.  For normalized operands: - product[47] determines whether normalization shift is required.  ---  ### Extraction rule:  If product[47] == 1:  - mantissa_candidate = product[47:24] - guard = product[23] - round = product[22] - sticky = OR(product[21:0]) - exponent = exponent + 1  Else:  - mantissa_candidate = product[46:23] - guard = product[22] - round = product[21] - sticky = OR(product[20:0])  ---  ### Sticky bit rule (IMPORTANT CLARIFICATION)  Sticky bit must include all bits strictly below the round bit position.  No lower bits may be excluded or partially truncated.  ---  ### Output of this stage:  - mantissa_candidate (24-bit including hidden bit alignment) - guard bit (G) - round bit (R) - sticky bit (S) - updated exponent (if product[47] == 1)  ---  ### Constraint:  This extraction must be performed BEFORE rounding and normalization stages. No rounding or exponent biasing is allowed in this stage.
+-Product is interpreted as a 48-bit value.  
+For normalized operands: - product[47] determines whether normalization shift is required.  
+---  ### Extraction rule:  If product[47] == 1:  - mantissa_candidate = product[47:24] - guard = product[23] - round = product[22] - sticky = OR(product[21:0]) - exponent = exponent + 1  
+Else:  
+- mantissa_candidate = product[46:23] 
+- guard = product[22] 
+- round = product[21] 
+- sticky = OR(product[20:0])  
+---  ### Sticky bit rule (IMPORTANT CLARIFICATION) 
+### Sticky bit must include all bits strictly below the round bit position.  No lower bits may be excluded or partially truncated.  
+---  ### Output of this stage:  - mantissa_candidate (24-bit including hidden bit alignment) 
+- guard bit (G) 
+- round bit (R) 
+- sticky bit (S) 
+- updated exponent (if product[47] == 1)  
+---  ### Constraint:  This extraction must be performed BEFORE rounding and normalization stages. No rounding or exponent biasing is allowed in this stage.
 
 ### Stage 6 — Normalize + Round-to-Nearest-Even (RNE)
 This stage performs:
-1. **Underflow alignment** toward exponent -126:
-   - Computes shift amount `sh = (-126 - z_e)` when `z_e < -126`.
-   - Shifts mantissa right and accumulates shifted-out bits into sticky.
-2. **Normalize** if MSB missing:
-   - Left-shifts mantissa while adjusting exponent, carrying guard into LSB.
-3. **RNE rounding**:
-   - If `G == 1` and `(R || S || LSB)` then increment mantissa.
-   - Handles carry-out from rounding:
-     - If rounding overflows mantissa, set mantissa to 0x800000 and increment exponent.
      Normalization Constraint: - Normalization must be performed exactly once. - After normalization, mantissa must satisfy: mantissa[23] == 1 OR exponent == 0 - No iterative or repeated shifting is allowed.
 
 ### Stage 7 — Pack
